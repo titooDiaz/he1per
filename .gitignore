@@ -6,3 +6,5 @@
 
 # ignore private settings
 .env
+
+include/secrets.h
