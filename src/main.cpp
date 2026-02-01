@@ -1,85 +1,72 @@
 #include <Arduino.h>
-#include <WiFi.h>
 
-// button 'boot'
-const int BOOT_PIN = 0;
+// Motor A
+#define IN1 16
+#define IN2 17
+#define ENA 5
 
-struct NetStats {
-  String ssid;
-  int sumRSSI = 0;
-  int count = 0;
-};
+// Motor B
+#define IN3 18
+#define IN4 19
+#define ENB 4
 
-NetStats networks[50];
-int netCount = 0;
+// PWM
+#define PWM_CH_A 0
+#define PWM_CH_B 1
+#define PWM_FREQ 200
+#define PWM_RES  8
 
-int findNetwork(const String& ssid) {
-  for (int i = 0; i < netCount; i++)
-    if (networks[i].ssid == ssid) return i;
-  return -1;
+// PWM values
+#define PWM_RUN 200
+#define PWM_MAX 255
+
+void setForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void pwmWrite(int v) {
+  ledcWrite(PWM_CH_A, v);
+  ledcWrite(PWM_CH_B, v);
+}
+
+void arranqueMartillo() {
+  setForward();
+
+  // === ELECTRIC HAMMERING ===
+  for (int i = 0; i < 25; i++) {
+    pwmWrite(PWM_MAX);
+    delay(25);
+    pwmWrite(0);
+    delay(25);
+  }
+
+  // === FINAL PUSH ===
+  pwmWrite(PWM_MAX);
+  delay(400);
+
+  // === WORKING SPEED ===
+  pwmWrite(PWM_RUN);
 }
 
 void setup() {
-  Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
 
-  pinMode(BOOT_PIN, INPUT);
-  Serial.println("\n--- PRESS BOOT BUTTON ---\n");
+  ledcSetup(PWM_CH_A, PWM_FREQ, PWM_RES);
+  ledcSetup(PWM_CH_B, PWM_FREQ, PWM_RES);
+
+  ledcAttachPin(ENA, PWM_CH_A);
+  ledcAttachPin(ENB, PWM_CH_B);
+
+  arranqueMartillo();
 }
 
 void loop() {
-  if (digitalRead(BOOT_PIN) == 0) {
-    Serial.println("\n--- BOOT ---");
-
-    // reset networks data
-    netCount = 0;
-    for (int i = 0; i < 50; i++) {
-      networks[i].ssid = "";
-      networks[i].sumRSSI = 0;
-      networks[i].count = 0;
-    }
-
-    // Do 5 scans
-    for (int k = 0; k < 5; k++) {
-      Serial.print("Medición ");
-      Serial.println(k + 1);
-
-      int n = WiFi.scanNetworks();
-
-      for (int i = 0; i < n; i++) {
-        String ssid = WiFi.SSID(i);
-        int rssi   = WiFi.RSSI(i);
-
-        int idx = findNetwork(ssid);
-
-        if (idx == -1 && netCount < 50) {
-          idx = netCount++;
-          networks[idx].ssid = ssid;
-        }
-
-        networks[idx].sumRSSI += rssi;
-        networks[idx].count++;
-      }
-
-      WiFi.scanDelete();
-      delay(300);
-    }
-
-    // show average
-    Serial.println("\n--- AVERAGE ---");
-    for (int i = 0; i < netCount; i++) {
-      float average = (float)networks[i].sumRSSI / networks[i].count;
-
-      Serial.print(i + 1);
-      Serial.print(") ");
-      Serial.print(networks[i].ssid);
-      Serial.print(" -> ");
-      Serial.print(average, 1);
-      Serial.println(" dBm");
-    }
-
-    Serial.println("\n---  BOOT ---\n");
-    delay(600);
-  }
+  // maintain rotation
+  pwmWrite(PWM_RUN);
 }
