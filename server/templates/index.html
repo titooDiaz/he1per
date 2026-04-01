@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Control Debug</title>
+</head>
+<body>
+
+<h2>Control (DEBUG)</h2>
+
+<button onmousedown="send('forward')" onmouseup="send('stop')">↑</button><br><br>
+
+<button onmousedown="send('left')" onmouseup="send('stop')">←</button>
+<button onmousedown="send('right')" onmouseup="send('stop')">→</button><br><br>
+
+<button onmousedown="send('backward')" onmouseup="send('stop')">↓</button>
+
+<script>
+const ESP32_IP = "192.168.1.27";
+
+function send(action) {
+    console.log("Enviando:", action);
+
+    fetch(`http://${ESP32_IP}/${action}`)
+    .then(res => {
+        console.log("Respuesta HTTP:", res.status);
+        return res.text();
+    })
+    .then(data => {
+        console.log("Respuesta ESP32:", data);
+    })
+    .catch(err => {
+        console.error("Error:", err);
+    });
+}
+</script>
+
+</body>
+</html>

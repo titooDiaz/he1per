@@ -1,72 +1,111 @@
 #include <Arduino.h>
+#include <WiFi.h>
 
-// Motor A
-#define IN1 16
-#define IN2 17
-#define ENA 5
+const char* ssid = "*";
+const char* password = "*";
 
-// Motor B
-#define IN3 18
-#define IN4 19
-#define ENB 4
+WiFiServer server(80);
 
-// PWM
-#define PWM_CH_A 0
-#define PWM_CH_B 1
-#define PWM_FREQ 200
-#define PWM_RES  8
+// Pines
+#define AIN1 26
+#define AIN2 27
+#define BIN1 33
+#define BIN2 25
+#define STBY 16
 
-// PWM values
-#define PWM_RUN 200
-#define PWM_MAX 255
+#define freq 1000
+#define resolution 8
+#define canalA 0
+#define canalB 1
 
-void setForward() {
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, HIGH);
-  digitalWrite(IN4, LOW);
+void stopMotors() {
+  Serial.println("CMD: STOP");
+  ledcWrite(canalA, 0);
+  ledcWrite(canalB, 0);
 }
 
-void pwmWrite(int v) {
-  ledcWrite(PWM_CH_A, v);
-  ledcWrite(PWM_CH_B, v);
+void forward() {
+  Serial.println("CMD: FORWARD");
+  digitalWrite(AIN2, LOW);
+  digitalWrite(BIN2, LOW);
+  ledcWrite(canalA, 200);
+  ledcWrite(canalB, 200);
 }
 
-void arranqueMartillo() {
-  setForward();
+void backward() {
+  Serial.println("CMD: BACKWARD");
+  digitalWrite(AIN2, HIGH);
+  digitalWrite(BIN2, HIGH);
+  ledcWrite(canalA, 200);
+  ledcWrite(canalB, 200);
+}
 
-  // === ELECTRIC HAMMERING ===
-  for (int i = 0; i < 25; i++) {
-    pwmWrite(PWM_MAX);
-    delay(25);
-    pwmWrite(0);
-    delay(25);
-  }
+void left() {
+  Serial.println("CMD: LEFT");
+  digitalWrite(AIN2, LOW);
+  digitalWrite(BIN2, HIGH);
+  ledcWrite(canalA, 200);
+  ledcWrite(canalB, 200);
+}
 
-  // === FINAL PUSH ===
-  pwmWrite(PWM_MAX);
-  delay(400);
-
-  // === WORKING SPEED ===
-  pwmWrite(PWM_RUN);
+void right() {
+  Serial.println("CMD: RIGHT");
+  digitalWrite(AIN2, HIGH);
+  digitalWrite(BIN2, LOW);
+  ledcWrite(canalA, 200);
+  ledcWrite(canalB, 200);
 }
 
 void setup() {
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
+  Serial.begin(115200);
 
-  ledcSetup(PWM_CH_A, PWM_FREQ, PWM_RES);
-  ledcSetup(PWM_CH_B, PWM_FREQ, PWM_RES);
+  pinMode(AIN2, OUTPUT);
+  pinMode(BIN2, OUTPUT);
+  pinMode(STBY, OUTPUT);
+  digitalWrite(STBY, HIGH);
 
-  ledcAttachPin(ENA, PWM_CH_A);
-  ledcAttachPin(ENB, PWM_CH_B);
+  ledcSetup(canalA, freq, resolution);
+  ledcAttachPin(AIN1, canalA);
 
-  arranqueMartillo();
+  ledcSetup(canalB, freq, resolution);
+  ledcAttachPin(BIN1, canalB);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(300);
+    Serial.print(".");
+  }
+
+  Serial.println("\nIP:");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
 }
 
 void loop() {
-  // maintain rotation
-  pwmWrite(PWM_RUN);
+  WiFiClient client = server.available();
+
+  if (!client) return;
+
+  Serial.println("\n--- NUEVO CLIENTE ---");
+
+  String request = client.readStringUntil('\r');
+  Serial.println("REQUEST:");
+  Serial.println(request);
+
+  if (request.indexOf("forward") != -1) forward();
+  else if (request.indexOf("backward") != -1) backward();
+  else if (request.indexOf("left") != -1) left();
+  else if (request.indexOf("right") != -1) right();
+  else if (request.indexOf("stop") != -1) stopMotors();
+
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-type:text/plain");
+  client.println("Access-Control-Allow-Origin: *");
+  client.println("Connection: close");
+  client.println();
+  client.println("OK");
+
+  client.stop();
 }
